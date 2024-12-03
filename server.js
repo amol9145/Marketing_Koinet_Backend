@@ -303,7 +303,7 @@ app.get("/get_infographics", async(req, res) => {
 // Backend API to fetch infographics by ID
 app.get("/get_infographic/:id", async(req, res) => {
     const { id } = req.params;
-    console.log(id)
+
 
     try {
         const infographic = await Infographics.findById(id);
