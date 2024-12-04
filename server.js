@@ -10,6 +10,9 @@ const Infographics = require("./modal/InfographicsSchema.js");
 const Reports = require("./modal/Reports.js");
 require("dotenv").config();
 const striptags = require("striptags");
+const Razorpay = require("razorpay");
+const crypto = require("crypto");
+const PaymentRazor = require("./modal/Payments.js");
 
 // Initialize the app
 const app = express();
@@ -29,6 +32,77 @@ app.use(bodyParser.json());
 // Connect to MongoDB
 dbConnect(); // Call the function to establish the connection to MongoDB
 // ****************************************************************************************************
+
+const razorpay = new Razorpay({
+    key_id: process.env.KEY_ID,
+    key_secret: process.env.KEY_SECRET,
+});
+
+app.post("/create-order", (req, res) => {
+    const { amount } = req.body;
+
+    try {
+        const options = {
+            amount: Number(amount),
+            currency: "INR",
+            receipt: crypto.randomBytes(10).toString("hex"),
+        };
+
+        razorpay.orders.create(options, (error, order) => {
+            if (error) {
+                console.log(error);
+                return res.status(500).json({ message: "Something Went Wrong!" });
+            }
+            res.status(200).json({ data: order });
+            console.log(order);
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Internal Server Error!" });
+        console.log(error);
+    }
+});
+app.post("/verify-payment", async(req, res) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+    req.body;
+
+    // console.log("req.body", req.body);
+
+    try {
+        // Create Sign
+        const sign = razorpay_order_id + "|" + razorpay_payment_id;
+
+        // Create ExpectedSign
+        const expectedSign = crypto
+            .createHmac("sha256", process.env.KEY_SECRET)
+            .update(sign.toString())
+            .digest("hex");
+
+        // console.log(razorpay_signature === expectedSign);
+
+        // Create isAuthentic
+        const isAuthentic = expectedSign === razorpay_signature;
+
+        // Condition
+        if (isAuthentic) {
+            const payment = new PaymentRazor({
+                razorpay_order_id,
+                razorpay_payment_id,
+                razorpay_signature,
+            });
+
+            // Save Payment
+            await payment.save();
+
+            // Send Message
+            res.json({
+                message: "Payement Successfully",
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ message: "Internal Server Error!" });
+        console.log(error);
+    }
+});
 // contact form
 app.post("/marketing/contact_form", async(req, res) => {
     try {
@@ -212,7 +286,6 @@ app.get("/get_data_press_releases/:id", async(req, res) => {
     }
 });
 
-
 //upload infographics
 app.post("/infographics", upload.single("file"), async(req, res) => {
     try {
@@ -304,7 +377,6 @@ app.get("/get_infographics", async(req, res) => {
 app.get("/get_infographic/:id", async(req, res) => {
     const { id } = req.params;
 
-
     try {
         const infographic = await Infographics.findById(id);
 
@@ -385,7 +457,7 @@ app.get("/get_reports", async(req, res) => {
         // Fetch the reports, applying sorting and pagination
         const reports = await Reports.find()
             .sort({
-                [sortBy]: order === "desc" ? -1 : 1
+                [sortBy]: order === "desc" ? -1 : 1,
             }) // Sorting
             .skip((page - 1) * limit) // Pagination logic
             .limit(Number(limit));
@@ -422,7 +494,6 @@ app.get("/get_report/:id", async(req, res) => {
     try {
         // Find the report by ID
         const report = await Reports.findById(id);
-
         // If the report does not exist, return a 404 response
         if (!report) {
             return res.status(404).json({
