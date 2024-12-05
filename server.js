@@ -103,6 +103,53 @@ app.post("/verify-payment", async(req, res) => {
         console.log(error);
     }
 });
+
+app.post("/send-email", async(req, res) => {
+    const {
+        user_name,
+        user_company,
+        user_email,
+        user_phone,
+        user_message,
+        user_link,
+    } = req.body;
+
+    try {
+        const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+            },
+            tls: {
+                rejectUnauthorized: false,
+            },
+            debug: true, // Enable debug output
+            logger: true, // Log information
+        });
+
+        const emailHtml = `
+            <h3>This is the sample form link</h3>
+
+           <a href="${user_link}" target="_blank">Download PDF</a>
+
+        `;
+
+        const options = {
+            from: "amol@koinetmedia.com",
+            to: user_email,
+            subject: "New Contact Form Submission",
+            html: emailHtml,
+        };
+
+        await transporter.sendMail(options);
+
+        res.status(200).json({ message: "Email sent successfully!" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to send email." });
+    }
+});
 // contact form
 app.post("/marketing/contact_form", async(req, res) => {
     try {
