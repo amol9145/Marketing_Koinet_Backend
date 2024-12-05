@@ -13,6 +13,7 @@ const striptags = require("striptags");
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const PaymentRazor = require("./modal/Payments.js");
+const FormSubmission = require("./modal/DownloadSampleReportsMail.js");
 
 // Initialize the app
 const app = express();
@@ -105,34 +106,37 @@ app.post("/verify-payment", async(req, res) => {
 });
 
 app.post("/send-email", async(req, res) => {
-    const {
-        user_name,
-        user_company,
-        user_email,
-        user_phone,
-        user_message,
-        user_link,
-    } = req.body;
+    const { user_name, user_company, user_email, user_phone, user_message, user_link } = req.body;
 
     try {
+        // Save the data to the database
+        const newSubmission = new FormSubmission({
+            user_name,
+            user_company,
+            user_email,
+            user_phone,
+            user_message,
+            user_link,
+        });
+
+        await newSubmission.save();
+
+        // Send the email
         const transporter = nodemailer.createTransport({
             service: "gmail",
             auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
+                user: process.env.EMAIL_USER, // Your email address
+                pass: process.env.EMAIL_PASS, // Your email password
             },
             tls: {
                 rejectUnauthorized: false,
             },
-            debug: true, // Enable debug output
-            logger: true, // Log information
         });
 
         const emailHtml = `
             <h3>This is the sample form link</h3>
-
-           <a href="${user_link}" target="_blank">Download PDF</a>
-
+            
+            <a href="${user_link}" target="_blank">Download PDF</a>
         `;
 
         const options = {
@@ -144,10 +148,10 @@ app.post("/send-email", async(req, res) => {
 
         await transporter.sendMail(options);
 
-        res.status(200).json({ message: "Email sent successfully!" });
+        res.status(200).json({ message: "Email sent and data saved successfully!" });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: "Failed to send email." });
+        res.status(500).json({ message: "Failed to send email or save data." });
     }
 });
 // contact form
