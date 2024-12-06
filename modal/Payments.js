@@ -1,15 +1,13 @@
 const mongoose = require("mongoose");
 
 const paymentSchema = new mongoose.Schema({
-    orderId: { type: String, required: true },
-    paymentId: { type: String, required: true },
-    signature: { type: String, required: true },
+    razorpay_order_id: { type: String, required: true },
+    razorpay_payment_id: { type: String, required: true },
+    razorpay_signature: { type: String, required: true },
     amount: { type: Number, required: true },
     currency: { type: String, required: true },
-    status: { type: String, default: "success" },
-    createdAt: { type: Date, default: Date.now },
-});
+}, { timestamps: true });
 
-const Payment = mongoose.model("Payment", paymentSchema);
+const PaymentRazor = mongoose.model("PaymentRazor", paymentSchema);
 
-module.exports = Payment;
+module.exports = PaymentRazor;

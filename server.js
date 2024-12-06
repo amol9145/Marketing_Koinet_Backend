@@ -39,69 +39,78 @@ const razorpay = new Razorpay({
     key_secret: process.env.KEY_SECRET,
 });
 
-app.post("/create-order", (req, res) => {
+app.post("/create-order", async(req, res) => {
     const { amount } = req.body;
+
+    if (!amount) return res.status(400).json({ message: "Amount is required" });
 
     try {
         const options = {
-            amount: Number(amount),
+            amount: Number(amount), // Amount in paise
             currency: "INR",
             receipt: crypto.randomBytes(10).toString("hex"),
         };
 
-        razorpay.orders.create(options, (error, order) => {
-            if (error) {
-                console.log(error);
-                return res.status(500).json({ message: "Something Went Wrong!" });
-            }
-            res.status(200).json({ data: order });
-            console.log(order);
-        });
+        const order = await razorpay.orders.create(options);
+        res.status(200).json({ data: order });
     } catch (error) {
-        res.status(500).json({ message: "Internal Server Error!" });
-        console.log(error);
+        console.error("Error creating Razorpay order:", error);
+        res.status(500).json({ message: "Failed to create Razorpay order" });
     }
 });
-app.post("/verify-payment", async(req, res) => {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-    req.body;
 
-    // console.log("req.body", req.body);
+// Route to Verify Payment and Save Details
+app.post("/verify-payment", async(req, res) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, currency } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !amount || !currency) {
+        return res.status(400).json({ message: "All fields are required" });
+    }
 
     try {
-        // Create Sign
         const sign = razorpay_order_id + "|" + razorpay_payment_id;
-
-        // Create ExpectedSign
         const expectedSign = crypto
             .createHmac("sha256", process.env.KEY_SECRET)
-            .update(sign.toString())
+            .update(sign)
             .digest("hex");
 
-        // console.log(razorpay_signature === expectedSign);
-
-        // Create isAuthentic
-        const isAuthentic = expectedSign === razorpay_signature;
-
-        // Condition
-        if (isAuthentic) {
-            const payment = new PaymentRazor({
-                razorpay_order_id,
-                razorpay_payment_id,
-                razorpay_signature,
-            });
-
-            // Save Payment
-            await payment.save();
-
-            // Send Message
-            res.json({
-                message: "Payement Successfully",
-            });
+        if (expectedSign !== razorpay_signature) {
+            return res.status(400).json({ message: "Invalid payment signature" });
         }
+
+        // Save payment details to the database
+        const payment = new PaymentRazor({
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature,
+            amount,
+            currency,
+        });
+
+        await payment.save();
+        res.status(200).json({ message: "Payment successfully verified and saved" });
     } catch (error) {
-        res.status(500).json({ message: "Internal Server Error!" });
-        console.log(error);
+        console.error("Error verifying payment:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// get all order
+app.get("/get-orders", async(req, res) => {
+    const { from, to, count } = req.query; // Optional query params for filtering
+
+    const options = {
+        from: from ? Number(from) : undefined, // Timestamp for the start of the range
+        to: to ? Number(to) : undefined, // Timestamp for the end of the range
+        count: count ? Number(count) : 10, // Number of orders to fetch (default: 10)
+    };
+
+    try {
+        const orders = await razorpay.orders.all(options);
+        res.status(200).json({ data: orders });
+    } catch (error) {
+        console.error("Error fetching orders:", error);
+        res.status(500).json({ message: "Failed to fetch orders" });
     }
 });
 
