@@ -114,6 +114,20 @@ app.get("/get-orders", async(req, res) => {
     }
 });
 
+// get all order with id
+app.get("/get-order-details/:orderId", async(req, res) => {
+    const { orderId } = req.params; // Get order ID from the URL parameters
+
+    try {
+        // Fetch the order details from Razorpay
+        const orderDetails = await razorpay.orders.fetch(orderId);
+        res.status(200).json({ data: orderDetails }); // Send order details as response
+    } catch (error) {
+        console.error("Error fetching order details:", error);
+        res.status(500).json({ message: "Failed to fetch order details" });
+    }
+});
+
 app.post("/send-email", async(req, res) => {
     const { user_name, user_company, user_email, user_phone, user_message, user_link } = req.body;
 
@@ -341,6 +355,47 @@ app.get("/get_data_press_releases/:id", async(req, res) => {
     } catch (err) {
         res.status(500).json({
             error: "Failed to fetch press release",
+            details: err.message,
+        });
+    }
+});
+
+// Update press release
+app.put("/update_press_release/:id", upload.single("file"), async(req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, category, description, reportId } = req.body;
+
+        // Find the press release by its ID
+        const pressRelease = await PressRelease.findById(id);
+
+        if (!pressRelease) {
+            return res.status(404).json({
+                error: "Press release not found",
+            });
+        }
+
+        // Update the press release data
+        pressRelease.title = title || pressRelease.title;
+        pressRelease.category = category || pressRelease.category;
+        pressRelease.description = description || pressRelease.description;
+        pressRelease.reportId = reportId || pressRelease.reportId;
+
+        // If a new file is uploaded, update the file path
+        if (req.file) {
+            pressRelease.filePath = `/uploads/${req.file.filename}`;
+        }
+
+        // Save the updated press release document
+        const updatedPressRelease = await pressRelease.save();
+
+        res.status(200).json({
+            message: "Press release updated successfully",
+            data: updatedPressRelease,
+        });
+    } catch (err) {
+        res.status(500).json({
+            error: "Failed to update press release",
             details: err.message,
         });
     }
