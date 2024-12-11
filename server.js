@@ -11,6 +11,7 @@ const Reports = require("./modal/Reports.js");
 require("dotenv").config();
 const striptags = require("striptags");
 const Razorpay = require("razorpay");
+const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const PaymentRazor = require("./modal/Payments.js");
 const FormSubmission = require("./modal/DownloadSampleReportsMail.js");
@@ -61,9 +62,20 @@ app.post("/create-order", async(req, res) => {
 
 // Route to Verify Payment and Save Details
 app.post("/verify-payment", async(req, res) => {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, currency } = req.body;
+    const {
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        amount,
+        currency,
+    } = req.body;
 
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !amount || !currency) {
+    if (!razorpay_order_id ||
+        !razorpay_payment_id ||
+        !razorpay_signature ||
+        !amount ||
+        !currency
+    ) {
         return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -88,11 +100,53 @@ app.post("/verify-payment", async(req, res) => {
         });
 
         await payment.save();
-        res.status(200).json({ message: "Payment successfully verified and saved" });
+        res
+            .status(200)
+            .json({ message: "Payment successfully verified and saved" });
     } catch (error) {
         console.error("Error verifying payment:", error);
         res.status(500).json({ message: "Internal server error" });
     }
+});
+
+//Login Form
+const users = [{
+    email: "test@example.com",
+    password: "$2a$10$E4Y/dK4TmVJdYcys5S3DZOih8h3XsFB4KqPwhFsiUm8.Mpz/rLR9a", // hashed password: "password123"
+}, ];
+
+app.use(bodyParser.json()); // Parse JSON bodies
+
+// Login route
+app.post("/login", (req, res) => {
+    const { email, password } = req.body;
+
+    // Find user by email
+    const user = users.find((u) => u.email === email);
+    if (!user) {
+        return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    // Compare password with hashed password
+    bcrypt.compare(password, user.password, (err, isMatch) => {
+        if (err) {
+            return res.status(500).json({ message: "Error comparing passwords" });
+        }
+
+        if (!isMatch) {
+            return res.status(400).json({ message: "Invalid credentials" });
+        }
+
+        // Create JWT token
+        const token = jwt.sign({ email: user.email }, process.env.JWT_SECRETE, {
+            expiresIn: "1h", // Token expires in 1 hour
+        });
+
+        return res.json({
+            message: "Login successful",
+            token,
+        });
+    });
 });
 
 // get all order
@@ -129,7 +183,14 @@ app.get("/get-order-details/:orderId", async(req, res) => {
 });
 
 app.post("/send-email", async(req, res) => {
-    const { user_name, user_company, user_email, user_phone, user_message, user_link } = req.body;
+    const {
+        user_name,
+        user_company,
+        user_email,
+        user_phone,
+        user_message,
+        user_link,
+    } = req.body;
 
     try {
         // Save the data to the database
@@ -171,7 +232,9 @@ app.post("/send-email", async(req, res) => {
 
         await transporter.sendMail(options);
 
-        res.status(200).json({ message: "Email sent and data saved successfully!" });
+        res
+            .status(200)
+            .json({ message: "Email sent and data saved successfully!" });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Failed to send email or save data." });
@@ -361,45 +424,49 @@ app.get("/get_data_press_releases/:id", async(req, res) => {
 });
 
 // Update press release
-app.put("/update_press_release/:id", upload.single("file"), async(req, res) => {
-    try {
-        const { id } = req.params;
-        const { title, category, description, reportId } = req.body;
+app.put(
+    "/update_press_release/:id",
+    upload.single("file"),
+    async(req, res) => {
+        try {
+            const { id } = req.params;
+            const { title, category, description, reportId } = req.body;
 
-        // Find the press release by its ID
-        const pressRelease = await PressRelease.findById(id);
+            // Find the press release by its ID
+            const pressRelease = await PressRelease.findById(id);
 
-        if (!pressRelease) {
-            return res.status(404).json({
-                error: "Press release not found",
+            if (!pressRelease) {
+                return res.status(404).json({
+                    error: "Press release not found",
+                });
+            }
+
+            // Update the press release data
+            pressRelease.title = title || pressRelease.title;
+            pressRelease.category = category || pressRelease.category;
+            pressRelease.description = description || pressRelease.description;
+            pressRelease.reportId = reportId || pressRelease.reportId;
+
+            // If a new file is uploaded, update the file path
+            if (req.file) {
+                pressRelease.filePath = `/uploads/${req.file.filename}`;
+            }
+
+            // Save the updated press release document
+            const updatedPressRelease = await pressRelease.save();
+
+            res.status(200).json({
+                message: "Press release updated successfully",
+                data: updatedPressRelease,
+            });
+        } catch (err) {
+            res.status(500).json({
+                error: "Failed to update press release",
+                details: err.message,
             });
         }
-
-        // Update the press release data
-        pressRelease.title = title || pressRelease.title;
-        pressRelease.category = category || pressRelease.category;
-        pressRelease.description = description || pressRelease.description;
-        pressRelease.reportId = reportId || pressRelease.reportId;
-
-        // If a new file is uploaded, update the file path
-        if (req.file) {
-            pressRelease.filePath = `/uploads/${req.file.filename}`;
-        }
-
-        // Save the updated press release document
-        const updatedPressRelease = await pressRelease.save();
-
-        res.status(200).json({
-            message: "Press release updated successfully",
-            data: updatedPressRelease,
-        });
-    } catch (err) {
-        res.status(500).json({
-            error: "Failed to update press release",
-            details: err.message,
-        });
     }
-});
+);
 
 //upload infographics
 app.post("/infographics", upload.single("file"), async(req, res) => {
