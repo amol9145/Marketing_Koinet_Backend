@@ -15,6 +15,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const PaymentRazor = require("./modal/Payments.js");
 const FormSubmission = require("./modal/DownloadSampleReportsMail.js");
+const contactSchema = require("./modal/ContactPage.js");
 
 // Initialize the app
 const app = express();
@@ -238,6 +239,28 @@ app.post("/send-email", async(req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Failed to send email or save data." });
+    }
+});
+
+//contact page form
+app.post("/marketing/contact_page_data", async(req, res) => {
+    try {
+        const contactData = new contactSchema(req.body);
+        await contactData.save();
+        res.status(200).send({ message: "Form submitted successfully!" });
+    } catch (error) {
+        res.status(500).send({ error: "Error saving form data" });
+    }
+});
+
+// contact page form
+app.get("/marketing/contact_page_data", async(req, res) => {
+    try {
+        // Fetch all contact submissions from the database
+        const contactData = await contactSchema.find();
+        res.status(200).send(contactData);
+    } catch (error) {
+        res.status(500).send({ error: "Error fetching contact form data" });
     }
 });
 // contact form
