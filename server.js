@@ -16,6 +16,8 @@ const crypto = require("crypto");
 const PaymentRazor = require("./modal/Payments.js");
 const FormSubmission = require("./modal/DownloadSampleReportsMail.js");
 const contactSchema = require("./modal/ContactPage.js");
+const UserSchema = require("./modal/UserSchema.js");
+const jwt = require("jsonwebtoken");
 
 // Initialize the app
 const app = express();
@@ -118,36 +120,89 @@ const users = [{
 
 app.use(bodyParser.json()); // Parse JSON bodies
 
-// Login route
-app.post("/login", (req, res) => {
-    const { email, password } = req.body;
+app.post("/register_new_user", async(req, res) => {
+    const { firstName, lastName, email, phone, password, role } = req.body;
 
-    // Find user by email
-    const user = users.find((u) => u.email === email);
-    if (!user) {
-        return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    // Compare password with hashed password
-    bcrypt.compare(password, user.password, (err, isMatch) => {
-        if (err) {
-            return res.status(500).json({ message: "Error comparing passwords" });
+    try {
+        // Check if user already exists
+        const existingUser = await UserSchema.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: "User already exists" });
         }
 
-        if (!isMatch) {
-            return res.status(400).json({ message: "Invalid credentials" });
-        }
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create JWT token
-        const token = jwt.sign({ email: user.email }, process.env.JWT_SECRETE, {
-            expiresIn: "1h", // Token expires in 1 hour
+        // Create new user
+        const newUser = new UserSchema({
+            firstName,
+            lastName,
+            email,
+            phone,
+            password: hashedPassword,
+            role,
         });
 
-        return res.json({
-            message: "Login successful",
+        await newUser.save();
+
+        // Generate token
+        const token = jwt.sign({ id: newUser._id, role: newUser.role },
+            process.env.JWT_SECRETE, { expiresIn: "1h" }
+        );
+
+        res.status(201).json({
+            message: "User registered successfully",
+            user: {
+                id: newUser._id,
+                firstName: newUser.firstName,
+                lastName: newUser.lastName,
+                email: newUser.email,
+                phone: newUser.phone,
+                role: newUser.role,
+            },
             token,
         });
-    });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+});
+
+// Login route
+app.post("/login", async(req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        // Check if user exists
+        const user = await UserSchema.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Compare provided password with the stored hashed password
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        // Generate token
+        const token = jwt.sign({ id: user._id, role: user.role },
+            process.env.JWT_SECRETE, { expiresIn: "1h" }
+        );
+
+        res.status(200).json({
+            message: "Login successful",
+            user: {
+                id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                role: user.role,
+            },
+            token,
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
 });
 
 // get all order
