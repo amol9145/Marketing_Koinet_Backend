@@ -186,7 +186,7 @@ app.post("/login", async(req, res) => {
 
         // Generate token
         const token = jwt.sign({ id: user._id, role: user.role },
-            process.env.JWT_SECRETE, { expiresIn: "1h" }
+            process.env.JWT_SECRETE, { expiresIn: "1d" }
         );
 
         res.status(200).json({
