@@ -276,53 +276,52 @@ app.post("/send-email", async(req, res) => {
         });
 
         const emailHtml = `
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Email Template</title>
-    </head>
- <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; justify-content: flex-start; align-items: flex-start;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; margin: 0; padding: 20px;">
-        <tr>
-            <td align="left">
-<img src="https://koinet-marketing-front-arxz.vercel.app/assets/logo2-BTMFoVIS.jpg" 
-     alt="logo" 
-     style="display: block; width: 40%; height: auto; margin-bottom: 20px;" />
-                <p style="font-size: 18px; font-weight: bold;">Dear Amol Patil,</p>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Email Template</title>
+                    </head>
+                <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; justify-content: flex-start; align-items: flex-start;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; margin: 0; padding: 20px;">
+                        <tr>
+                            <td align="left">
+                <img src="https://koinet-marketing-front-arxz.vercel.app/assets/logo2-BTMFoVIS.jpg" 
+                    alt="logo" 
+                    style="display: block; width: 40%; height: auto; margin-bottom: 20px;" />
+                                <p style="font-size: 18px; font-weight: bold;">Dear Amol Patil,</p>
 
-                <p style="font-size: 16px; margin-bottom: 20px;">
-                    Thank you for requesting the sample report on the <span style="font-weight: bold; color: #007bff;">${report_title}</span>.
-                    We appreciate your interest and are excited about the opportunity to assist you.
-                    Our team is currently processing your request, and you will receive the sample report shortly at the email address provided.
-                    In the meantime, if you have any specific requirements or queries, please feel free to let us know. We would be delighted to address your needs and explore potential collaboration opportunities.
-                </p>
+                                <p style="font-size: 16px; margin-bottom: 20px;">
+                                    Thank you for requesting the sample report on the <span style="font-weight: bold; color: #007bff;">${report_title}</span>.
+                                    We appreciate your interest and are excited about the opportunity to assist you.
+                                    Our team is currently processing your request, and you will receive the sample report shortly at the email address provided.
+                                    In the meantime, if you have any specific requirements or queries, please feel free to let us know. We would be delighted to address your needs and explore potential collaboration opportunities.
+                                </p>
 
-                <p style="font-size: 16px; margin-bottom: 20px;">
-                    Thank you for considering Koinet Market Research.
-                </p>
+                                <p style="font-size: 16px; margin-bottom: 20px;">
+                                    Thank you for considering Koinet Market Research.
+                                </p>
 
-                <p style="font-size: 16px; font-weight: bold;">Best regards,</p>
-                <p style="font-size: 16px; margin-bottom: 20px;">Koinet Market Research</p>
+                                <p style="font-size: 16px; font-weight: bold;">Best regards,</p>
+                                <p style="font-size: 16px; margin-bottom: 20px;">Koinet Market Research</p>
 
-                <p style="font-size: 16px;">
-                    <strong>Email:</strong> info@koinetmedia.com<br>
-                    <strong>Phone:</strong> +91 90215 68448<br>
-                    <strong>Address:</strong>Kharadi,pune,Maharashtra,India,411014<br>
-                    <strong>Website:</strong> <a href="https://koinet-marketing-front-arxz.vercel.app/" target="_blank">https://koinet-marketing-front-arxz.vercel.app/</a>
-                </p>
-            </td>
-        </tr>
-    </table>
-</body>
-
-    </html>
+                                <p style="font-size: 16px;">
+                                    <strong>Email:</strong> info@koinetmedia.com<br>
+                                    <strong>Phone:</strong> +91 90215 68448<br>
+                                    <strong>Address:</strong>Kharadi,pune,Maharashtra,India,411014<br>
+                                    <strong>Website:</strong> <a href="https://koinet-marketing-front-arxz.vercel.app/" target="_blank">https://koinet-marketing-front-arxz.vercel.app/</a>
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
 `;
 
         const options = {
             from: "amol@koinetmedia.com",
             to: user_email,
-            subject: "New Contact Form Submission",
+            subject: "Inquiry for Download Sample Report - Koinet Market Research",
             html: emailHtml,
         };
 
