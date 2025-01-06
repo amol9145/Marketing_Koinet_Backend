@@ -297,6 +297,12 @@ app.post("/send-email", async(req, res) => {
                                     Our team is currently processing your request, and you will receive the sample report shortly at the email address provided.
                                     In the meantime, if you have any specific requirements or queries, please feel free to let us know. We would be delighted to address your needs and explore potential collaboration opportunities.
                                 </p>
+                                  <p style="text-align: center; margin: 30px 0;">
+                                    <a href="${user_link}" target="_blank" 
+                                    style="background-color: #007bff; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 5px; font-size: 16px; font-weight: bold;">
+                                        📥 Download Your Report
+                                    </a>
+                                 </p>
 
                                 <p style="font-size: 16px; margin-bottom: 20px;">
                                     Thank you for considering Koinet Market Research.
