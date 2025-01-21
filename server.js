@@ -50,13 +50,30 @@ app.post("/create-order", async(req, res) => {
 
     try {
         const options = {
-            amount: Number(amount), // Amount in paise
+            amount: Number(amount), // Convert amount to paise
             currency: "INR",
             receipt: crypto.randomBytes(10).toString("hex"),
         };
 
+        // Create Razorpay order
         const order = await razorpay.orders.create(options);
-        res.status(200).json({ data: order });
+        console.log("Created Order:", order); // Log for debugging
+
+        // Generate JWT token with order details
+        const token = jwt.sign({
+                orderId: order.id,
+                amount: amount,
+                currency: order.currency,
+            },
+            process.env.JWT_SECRETE, // Ensure JWT_SECRET is set correctly
+            { expiresIn: "1h" } // Token expires in 1 hour
+        );
+
+        // Send order and token to the frontend
+        res.status(200).json({
+            data: order,
+            token: token, // Include token in response
+        });
     } catch (error) {
         console.error("Error creating Razorpay order:", error);
         res.status(500).json({ message: "Failed to create Razorpay order" });
@@ -289,7 +306,7 @@ app.post("/send-email", async(req, res) => {
                 <img src="https://koinet-marketing-front-arxz.vercel.app/assets/logo2-BTMFoVIS.jpg" 
                     alt="logo" 
                     style="display: block; width: 40%; height: auto; margin-bottom: 20px;" />
-                                <p style="font-size: 18px; font-weight: bold;">Dear Amol Patil,</p>
+                                <p style="font-size: 18px; font-weight: bold;">Dear ${user_name},</p>
 
                                 <p style="font-size: 16px; margin-bottom: 20px;">
                                     Thank you for requesting the sample report on the <span style="font-weight: bold; color: #007bff;">${report_title}</span>.
@@ -723,7 +740,31 @@ app.post("/reports", upload.single("file"), async(req, res) => {
             methodology,
             downloadSampleReport,
             reportId,
+            licenseType, // "single", "multi", or "enterprise"
+            allowedEmails, // Array of emails for multi-user license
+            currentUserEmail, // Current user's email for single-user license
         } = req.body;
+
+        // Validate license type and allowedEmails
+        if (licenseType === "multi" && (!allowedEmails || !allowedEmails.length)) {
+            return res
+                .status(400)
+                .json({ message: "For multi-user license, provide allowedEmails." });
+        }
+
+        if (licenseType === "single" && !currentUserEmail) {
+            return res.status(400).json({
+                message: "For single-user license, provide currentUserEmail.",
+            });
+        }
+
+        // Generate a unique token for the report
+        const token = jwt.sign({
+                reportId: reportId || uuidv4(),
+                licenseType,
+            },
+            process.env.JWT_SECRETE, { expiresIn: "30d" } // Token expires in 30 days
+        );
 
         const newReport = new Reports({
             title,
@@ -731,25 +772,36 @@ app.post("/reports", upload.single("file"), async(req, res) => {
             singleUserPrice: Number(singleUserPrice),
             multiUserPrice: Number(multiUserPrice),
             enterprisePrice: Number(enterprisePrice),
-            summary,
-            tableOfContents,
-            methodology,
-            downloadSampleReport,
+            summary: summary || "", // Default to empty string
+            tableOfContents: tableOfContents || "", // Default to empty string
+            methodology: methodology || "", // Default to empty string
+            downloadSampleReport: downloadSampleReport || "", // Default to empty string
             reportId,
             filePath: req.file ? req.file.path : null,
+            token,
+            licenseType: licenseType || "enterprise", // Default to "enterprise"
+            allowedEmails: licenseType === "multi" ? allowedEmails : [], // Default to empty array
+            currentUserEmail: licenseType === "single" ? currentUserEmail : "", // Default to empty string
         });
 
         await newReport.save();
-        res
-            .status(201)
-            .json({ message: "Report created successfully!", data: newReport });
+
+        res.status(201).json({
+            message: "Report created successfully!",
+            data: {
+                ...newReport._doc,
+                licenseType,
+                accessDetails: licenseType === "single" ? { currentUserEmail } : licenseType === "multi" ? { allowedEmails } : "Enterprise license allows access to all users.",
+                token,
+            },
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Internal Server Error", error });
     }
 });
 
-// get all reports
+// Get All Reports Route (GET /get_reports)
 app.get("/get_reports", async(req, res) => {
     const {
         page = 1,
@@ -763,8 +815,8 @@ app.get("/get_reports", async(req, res) => {
         const reports = await Reports.find()
             .sort({
                 [sortBy]: order === "desc" ? -1 : 1,
-            }) // Sorting
-            .skip((page - 1) * limit) // Pagination logic
+            })
+            .skip((page - 1) * limit)
             .limit(Number(limit));
 
         const totalCount = await Reports.countDocuments();
@@ -772,59 +824,123 @@ app.get("/get_reports", async(req, res) => {
         // Optionally, sanitize description if it contains HTML
         const sanitizedData = reports.map((report) => ({
             ...report.toObject(),
-            description: striptags(report.description), // Remove HTML tags from the description
+            description: striptags(report.description), // Remove HTML tags from description
         }));
 
-        // Send the correct response back to the client
         res.status(200).json({
             message: "Reports fetched successfully",
-            data: sanitizedData, // Array of reports
-            total: totalCount, // Total number of reports
-            page: Number(page), // Current page
-            limit: Number(limit), // Limit per page
+            data: sanitizedData,
+            total: totalCount,
+            page: Number(page),
+            limit: Number(limit),
         });
     } catch (error) {
         console.error(error);
-        res.status(500).json({
-            message: "Internal Server Error",
-            error,
-        });
+        res.status(500).json({ message: "Internal Server Error", error });
     }
 });
 
-//get report details by id
-app.get("/get_report/:id", async(req, res) => {
-    const { id } = req.params;
-
+app.get("/reports/:id", async(req, res) => {
     try {
+        const { id } = req.params;
         // Find the report by ID
         const report = await Reports.findById(id);
-        // If the report does not exist, return a 404 response
         if (!report) {
-            return res.status(404).json({
-                message: "Report not found",
+            return res.status(404).json({ message: "Report not found." });
+        }
+
+        // Return the report details as JSON response
+        res.status(200).json({
+            message: "Report details fetched successfully.",
+            data: report,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Internal Server Error", error });
+    }
+});
+
+// Update Report Route (PATCH /reports/:id)
+app.put("/reports_update/:id", upload.single("file"), async(req, res) => {
+    const { id } = req.params;
+
+    // Validate the id
+    if (!id) {
+        return res.status(400).json({ message: "Invalid or missing report ID." });
+    }
+
+    try {
+        const {
+            title,
+            category,
+            singleUserPrice,
+            multiUserPrice,
+            enterprisePrice,
+            summary,
+            tableOfContents,
+            methodology,
+            downloadSampleReport,
+            licenseType, // "single", "multi", or "enterprise"
+            allowedEmails, // Array of emails for multi-user license
+            currentUserEmail, // Current user's email for single-user license
+        } = req.body;
+
+        // Fetch the existing report to update
+        const report = await Reports.findById(id);
+        if (!report) {
+            return res.status(404).json({ message: "Report not found." });
+        }
+
+        // Validate license type and allowedEmails
+        if (licenseType === "multi" && (!allowedEmails || !allowedEmails.length)) {
+            return res.status(400).json({ message: "For multi-user license, provide allowedEmails." });
+        }
+
+        if (licenseType === "single" && !currentUserEmail) {
+            return res.status(400).json({
+                message: "For single-user license, provide currentUserEmail.",
             });
         }
 
-        // Sanitize the report data (optional)
-        const sanitizedData = {
-            ...report.toObject(),
-            summary: report.summary, // Sanitize HTML if needed
-        };
+        // Update fields if provided
+        if (title) report.title = title;
+        if (category) report.category = category;
+        if (singleUserPrice) report.singleUserPrice = singleUserPrice;
+        if (multiUserPrice) report.multiUserPrice = multiUserPrice;
+        if (enterprisePrice) report.enterprisePrice = enterprisePrice;
+        if (summary) report.summary = summary;
+        if (tableOfContents) report.tableOfContents = tableOfContents;
+        if (methodology) report.methodology = methodology;
+        if (downloadSampleReport) report.downloadSampleReport = downloadSampleReport;
 
-        // Send the sanitized report data in the response
+        // If it's a multi-user or enterprise license, update allowedEmails
+        if (licenseType === "multi" && allowedEmails) {
+            report.allowedEmails = allowedEmails;
+        }
+
+        // If it's a single-user license, update currentUserEmail
+        if (licenseType === "single" && currentUserEmail) {
+            report.currentUserEmail = currentUserEmail;
+        }
+
+        // If there's a file, update the file path
+        if (req.file) {
+            report.filePath = req.file.path;
+        }
+
+        // Save the updated report
+        await report.save();
+
         res.status(200).json({
-            message: "Report fetched successfully",
-            data: sanitizedData,
+            message: "Report updated successfully!",
+            data: report,
         });
     } catch (error) {
-        console.error("Error fetching report:", error);
-        res.status(500).json({
-            message: "Internal Server Error",
-            error,
-        });
+        console.error(error);
+        res.status(500).json({ message: "Internal Server Error", error });
     }
 });
+
 
 // Start the server
 const PORT = process.env.PORT || 3000;
